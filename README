@@ -1,0 +1,259 @@
+Instructions for running pnlf_tng
+
+INTRODUCTION
+
+The program pnlf_tng fits a set of PN magnitudes to a user-defined empirical 
+PNLF (while accounting for belends) via the algorithms described in 
+Chase et al. (2023).  The program was developed using gfortran under
+macOS 11.7.4, but it is quite vanilla and should run under most flavors of 
+fortran and under most operating systems.   The principal input of the
+program is a set of PN magnitudes, background surface brightnesses, and
+seeing measurements; the principle output is a normalized 2-D array of 
+likelihoods, with the dimensions being distance modulus and PN/Luminosity 
+ratio.  This real* array is written via an unformatted write statement (and
+therefore should be read in the equivalent manner).  Note:  although the 
+output (and many of the inputs are real*4 variables, most of the calculations
+are performed in double precision (real*8).
+
+Because the program is only fitting two parameters, the methodology used
+is not very sophisticated:  the program just loops though a 2-D array (in
+distance modulus and PN/Luminosity) and computes the likelihood of each
+solution.  Depending on the sample of PN being analyzed, this could
+take a few minute to a couple of hours.  More sophisticated methods, such
+Markov Chain Monte Carlo could speed this up, but is not currently used.  
+
+The following instructions assume that the user has a fortran compiler.  
+
+
+BEFORE COMPILING
+
+There are several important values hard-wired into the pnlf_tng code.
+Most of these are array dimensions; some are instrumental or astrophysical
+values.  They are defined in the code as PARAMETER statements.  Most users
+will not have to worry about these numbers, but just in case, the table
+below lists the values.  If you do need to modify these values, simply
+edit the numbers before compiling the code.  
+
+PARAMETER   DEFAULT    DEFINITION
+
+NARRAY	      1000     Maximum size of the output likelihood array.
+                       This one variable defines the maximum grid size in
+                       both distance modulus *and* PN/Luminosity value.
+N_PN          1000     Maximum number of PN in the data sample
+NLF          20000     Maximun size of arrays which define the emprical PNLF
+NGAUSS       70000     Maximum size of an array for gaussian convolution
+SEEING_FRAC  0.5  /_   PN are assumed to be unresolvable if the separation 
+DELTA_V      200  \    between two objects is less than FWHM * SEEING_FRAC and
+                       the velocity separation is less than DELTA_V km/s
+SUN_BOL      4.74      Bolometric magnitude of the Sun
+BOL_CORR    -0.85      Bolometric correction for a stellar population
+R_V          3.1       Ratio between total extinction and differential
+                       extinction in the V band, i.e., A_V = R_V * E(B-V)
+R_5007       3.47      Ratio between total extinction and differential
+                       at 5007 A, i.e., A_5007 = R_5007 * E(B-V) .  (This
+                       last number if from Cardelli et al. (1989) with R_V = 3.1
+
+(One oddity:  in order to keep the fortran as vanilla as possible, the 
+parameter definitions for these variables are scattered throughout the 
+program file, *and* the same definition can appear in multiple subroutines.
+In particular, NLF appears in 5 separate subroutines, and N_PN is separately
+defined in 3 subroutines.  You have to edit these numbers in all their 
+locations for the program to work.
+
+COMPILING AND RUNNING THE PROGRAM
+
+All the necessary subroutines are included in the one file.  To compile
+the code with gfortran and create an executable with name pnlf_tag.  Under
+GNU fortran, the command is 
+
+	gfortran pnlf_tng.f -o pnlf_tng
+
+where -o pnlf_tng  is the name of the output executable file.  No special
+No flags should be necessary.
+
+To run the program, simply type the name of the executable file.  The default
+is that the program will run interactively (i.e., in "verbose" mode), prompting 
+you for inputs.  If you wish to suppress the printing of prompts and other 
+extraneous information, you can run the program with the argument "Q" (or
+"q"), i.e.,
+
+	pnlf_tng  Q
+
+To enable the user to monitor the progress of the calculation, the
+the program will print out a single line status report on its progress,
+which will state the distance-modulus loop number that is currently being
+executed (and the associated distance modulus).  Since the time for
+program executive scales as the number of PN in the sample, this can be
+handy, as execution times can be long (minutes to an hour or so).
+
+INPUT FILES
+
+Two (or three) input files have to be prepared ahead of time.  These are
+
+1)  A file containing a digital representation of the empirical PNLF.
+The file has two columns, separated by at least once space.  The first 
+column must contain absolute 5007 magnitude; the second column must have the 
+relative number of PN at that magnitude.  This curve need not be normalized, 
+and should start with the first non-zero value in the luminosity function.
+The values are read in as real*8, should extend at least 5 mag further down the 
+luminosity function than the faintest PN to be analyzed, and contain no more 
+than 20,000 lines.  (To change the line limit, edit the NLF parameter 
+and recompile the program.)
+
+2)  A file containing the data for the observed PN.  This file must contain
+at least 4 columns, each separated by at least one space.  The first line 
+is assumed to be a comment line and is ignored.  The second line defines
+the contents of each column using a set of (space delimited) keywords.
+The remaining lines contain the PN data, one PN per line.  The (case 
+IN-sensitivie) keywords that tell the program what the columns contain are
+
+	PN-MAG:	  The apparent 5007 magnitude of all the PN in the sample
+	KILL:	  If this column contains any character other than "X" or "x",
+		  then the PN is read; otherwise the entry is skipped
+	SEEING:   The seeing FWHM applicable to the PN
+	MAG-GAL:  The V-band surface brightness (mag/arcsec^2) of the 
+		  galaxy at the position of the PN
+	FLUX-GAL  An alternative for GAL-MAG containing the background galaxy
+		  flux (ergs/cm2/s/A) within a defined spatial aperture; this
+                  keyword is only used if the keyword MAG-GAL doesn't exist
+	APER:     Radius of the aperture for FLUX-GAL (in units of 0.2 arcsec)
+	LAMBDA:	  The observed wavelength for FLUX-GAL (in angstroms)
+	V-DISP:   The velocity dispersion of the stars underlying the PN.
+		  If no such column exists, the user can specify a single
+		  V-DISP value applicable to all the PN (see below).
+
+All other column labels are ignored.  Up to 1000 PN can be analyzed.  
+(To change the line limit, edit the N_PN parameter and recompile the program.)
+
+3)  An optional file containing a digital function of how photometric
+errors are expected to change with 5007 magnitude.  Column (1) is the apparent
+5007 magnitude (starting at the bright end), and column (2) is the expected 
+photometric error.  At least one space separates the columns.  These data will 
+be fit with a spline, and the resulting curve convolved with the model PNLF 
+to reproduce the expected observed PNLF.  If a photometric error file is
+not given, then the photometric convolution will not be performed.  Note:
+this convolution is somewhat time consuming.  The program can be sped up
+significantly by leaving the line blank.
+
+INPUT VALUES
+
+Once the data files are prepared, the program can be run.  In verbose
+mode, the code will prompt for each input.  However, since 16 input
+parameters are needed, it is usually easier to prepare a command file
+and pipe the commands into the program (while verbose is turned off).  The
+16 input values are
+
+1)  Filename containing the empirical PNLF (see above)
+2)  Filename containing the PN data (see above)
+3)  Filename containing photometric error versus magnitude.  If this line
+    is blank, then no photometric convolution will be performed.
+4)  Limiting apparent 5007 magnitude for photometric completeness.  This 
+    program does *not* attempt to correct the PN counts for incompleteness, so 
+    this value should be close to the point where the incompleteness becomes 
+    important (i.e., where the observations are still ~90% complete).
+5)  Limiting apparent 5007 magnitude for zero detections.  This is a kludge 
+    to help the numerics.  It represents the *approximate* apparent 
+    magnitudes where you would expected zero percent completeness.  
+6)  Foreground E(B-V).  The program assumes A_5007 = R_5007 E(B-V) (see
+    parameter list above)
+7)  Minimum and maximum true distance moduli for the calculation.  The 
+    program assumes a flat prior between these two limits; beyond the limits, 
+    the solution likelihood is set to zero.
+8)  Stepsize for distance calculation.  At present, the program is
+    dimensioned such that (Max_distance_mod - Min_distance_mod) / stepsize
+    must be less than 1000.  To increase this limit, change the parameter 
+    NARRAY . (NARRAY also effects alpha; see next 2 inputs.)
+9)  Minimum and maximum value for alpha_2.5, the number of PN/Lsun within
+    2.5 mag of the brightest possible PN in a single-object PNLF.  The program
+    assumes a flat prior between these two limits; beyond the limits, the 
+    solution likelihood is set to zero.
+10) Stepsize for alpha calculation.  At present, the program is dimensioned
+    such that (Max_alpha - Min_alpha) / stepsize must be less than than 1000.
+    To increase this limit, change the parameter NARRAY and recompile.
+    (NARRAY also affects dmod; see above.)
+11) Approximate magnitude resolution for photometric convolution.  This
+    technical parameter is purely for numerical precision and should be 
+    similar (or smaller) to the stepsize for the distance calculation.
+12) Gaussian convolution resolution and N-sigma.  The photometric error
+    convolution kernal will extend N-sigma into the wings of a Gaussian.
+    Currently, the program is dimensioned such that 
+    (Max_photometric_err * N-sigma / resolution) must be less than 70,000.
+    Change the parameter NGAUSS if a larger kernel is needed.  These numbers
+    are ignored if there is no photometric error versus magnitude file.
+13) Apparent integrated V-mag of surveyed portion of the galaxy.
+14) Galaxy line-of-sight velocity dispersion (in km/s).  If this value is blank
+    (or negative), the velocity dispersion underlying each PN will be taken
+    from the PN data file; otherwise, this number is used as the default.
+15) Should blends be included in the analysis?  If "Y" (or "y"), the
+    algorithms of Chase et al. (2023) are used; if "N" (or "n"), a maximum
+    likelihood analysis is performed without considering blends.  Note:  
+    although the calculation for "N" is correct, the calculation is quite
+    inefficient, as it performs all the calculation for necessary to analyze
+    blends, but assigns both the seeing and galaxy velocity dispersion to be 
+    zero.  
+    
+16) The output name for an unformatted file containing the results of the
+    calculation.
+
+OUTPUT FILE
+
+The output of the program is an unformatted file containing the likelihood
+of a fit as a function of true distance modulus and alpha_2.5 value.  Since
+a read statement for an unformatted file will occasionally yield garbage if 
+it is not identical to the write statement that produced the file, we show
+the write statements below.  The first set of data written contains the 
+following variables.  
+
+	write (4) amu0, amures, alpha0, alphares, ebv, mloop,
+     1                                   kloop, k, (zlevel(j),j=1,k)
+
+These variables contain
+
+amu0:      the lowest distance modulus in the analysis  (real*4)
+amures:    the stepsize for the array of distance moduli (real*4)
+alpha0:    the smallest alpha_2.5 value in the analysis (real*4)
+alpha_res: the stepsize for the array of alpha_2.5 values (real*4)
+ebv:       the differential foreground extinction E(B-V) entered (real*4)
+mloop:     the number of alpha_2.5 values in the array (integer*4)
+kloop:     the number of distance moduli in the array (integer*4)
+k          the number of elements in zlevel. This number is always 10 
+           and is included only for historical reasons (integer*4)
+zlevel:    an array of length 10 containing the likelihood values
+           that correspond to contours that enclose 0.5, 1.0, 1.5, 2.0, 2.5,
+           3.0, 3.5, 4.0, 4.5, and 5.0 sigma of the probability within
+           their limits. This is useful for some contour plotting packages 
+           (real*4)
+           
+Following this, the normalized real*4 likelihood array is written. The
+data are written one column at a time by coping the real*8 array
+prob(kloop,mloop) into a real*4 1-D array, and then writing out that column,
+i.e.,
+
+	do j = 1, mloop
+            do i = 1, kloop
+                pscratch(i) = prob(i,j)
+            end do
+            write (4) (pscratch(i), i = 1, kloop)
+        end do
+
+It is strongly suggested that the read statement follow this same procedure.
+
+The program also prints some summary information to the screen, including
+
+1)  The number of analyzed PN brighter than the limiting magnitude for 
+    completeness
+2)  The highest likelihood value in the 2-D [distance modulus, PN/Luminosity] 
+    grid
+3)  The highest likelihood value in the 1-D array of distance moduli 
+    (i.e., the program has marginalized over the PN/Luminosity variable).
+4)  The distance modulus corresponding to the highest likelihood in the
+    [distance modulus, PN/Luminosity] array
+5)  The PN/Luminosity value corresponding to the highest likelihood in the
+    [distance modulus, PN/Luminosity] array
+6)  For the most-likely value in the [distance modulus, PN/Luminosity] array, 
+    the expectation value for the number PNe at the location of the brightest PN
+    in the sample.
+
+The program assumes that the complete analysis of the likelihood array
+(i.e., the plotting of probability contours and the marginalization over
+variables) will be done in a separate (user written) program.
