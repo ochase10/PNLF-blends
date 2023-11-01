@@ -188,7 +188,7 @@ and pipe the commands into the program (while verbose is turned off).  The
     algorithms of Chase et al. (2023) are used; if "N" (or "n"), a maximum
     likelihood analysis is performed without considering blends.  Note:  
     although the calculation for "N" is correct, the calculation is quite
-    inefficient, as it performs all the calculation for necessary to analyze
+    inefficient, as it performs all the compputations necessary to analyze
     blends, but assigns both the seeing and galaxy velocity dispersion to be 
     zero.  
     

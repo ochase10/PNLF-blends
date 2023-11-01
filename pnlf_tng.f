@@ -477,7 +477,7 @@ c
 	else if (keyword(3) .eq. 0 .and. keyword(4) .eq. 0) then
 	    write (6,*) 'No keyword for galaxy surface brightness'
 	    stop 
-	else if (keyword(4) .ne. 0 .and. (keyword(5) .eq. 0 .or.
+	else if (keyword(3) .eq. 0 .and. (keyword(5) .eq. 0 .or.
      1           keyword(6) .eq. 0)) then
 	    write (6,*) 'Aperture or wavelength missing for FLUX-GAL'
 	    stop
